@@ -23,6 +23,7 @@ import org.gradle.internal.concurrent.ExecutorFactory;
 import org.gradle.internal.event.ListenerManager;
 import org.gradle.internal.filewatch.FileWatcherFactory;
 import org.gradle.internal.invocation.BuildActionRunner;
+import org.gradle.internal.nativeintegration.filesystem.FileCanonicalizer;
 import org.gradle.internal.service.ServiceRegistration;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.service.scopes.PluginServiceRegistry;
@@ -58,9 +59,8 @@ public class LauncherServices implements PluginServiceRegistry {
             return new ContinuousModeBuildActionExecuter(new InProcessBuildActionExecuter(gradleLauncherFactory, new ChainingBuildActionRunner(buildActionRunners)), triggerGeneratorFactory, listener);
         }
 
-        TriggerGeneratorFactory createTriggerGeneratorFactory(ExecutorFactory executorFactory, FileWatcherFactory fileWatcherFactory, ServiceRegistry services) {
-            ListenerManager listenerManager = services.get(ListenerManager.class);
-            return new DefaultTriggerGeneratorFactory(executorFactory, fileWatcherFactory, listenerManager.getBroadcaster(TriggerListener.class));
+        TriggerGeneratorFactory createTriggerGeneratorFactory(ExecutorFactory executorFactory, FileWatcherFactory fileWatcherFactory, ListenerManager listenerManager, FileCanonicalizer fileCanonicalizer) {
+            return new DefaultTriggerGeneratorFactory(executorFactory, fileWatcherFactory, listenerManager.getBroadcaster(TriggerListener.class), listenerManager, fileCanonicalizer);
         }
 
         ExecuteBuildActionRunner createExecuteBuildActionRunner() {
