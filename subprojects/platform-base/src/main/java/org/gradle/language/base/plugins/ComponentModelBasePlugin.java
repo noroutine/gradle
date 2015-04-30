@@ -18,8 +18,8 @@ package org.gradle.language.base.plugins;
 import org.gradle.api.*;
 import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.plugins.ExtensionContainer;
-import org.gradle.api.tasks.TaskContainer;
 import org.gradle.internal.BiActions;
+import org.gradle.internal.TriAction;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.language.base.FunctionalSourceSet;
@@ -32,18 +32,21 @@ import org.gradle.language.base.internal.model.BinarySpecFactoryRegistry;
 import org.gradle.language.base.internal.model.CollectionBuilderCreators;
 import org.gradle.language.base.internal.model.ComponentSpecInitializer;
 import org.gradle.language.base.internal.registry.*;
-import org.gradle.model.*;
+import org.gradle.model.Defaults;
+import org.gradle.model.Model;
+import org.gradle.model.Mutate;
+import org.gradle.model.RuleSource;
 import org.gradle.model.collection.CollectionBuilder;
-import org.gradle.model.internal.core.DirectNodeModelAction;
-import org.gradle.model.internal.core.ModelActionRole;
-import org.gradle.model.internal.core.ModelCreator;
-import org.gradle.model.internal.core.ModelReference;
+import org.gradle.model.internal.core.*;
+import org.gradle.model.internal.core.rule.describe.NestedModelRuleDescriptor;
 import org.gradle.model.internal.core.rule.describe.SimpleModelRuleDescriptor;
 import org.gradle.model.internal.registry.ModelRegistry;
 import org.gradle.platform.base.*;
 import org.gradle.platform.base.internal.*;
 
 import javax.inject.Inject;
+import java.util.Collections;
+import java.util.List;
 
 import static org.apache.commons.lang.StringUtils.capitalize;
 import static org.gradle.internal.Cast.uncheckedCast;
@@ -88,6 +91,46 @@ public class ComponentModelBasePlugin implements Plugin<ProjectInternal> {
                 ModelReference.of(BinarySpec.class),
                 new SimpleModelRuleDescriptor(descriptor),
                 ComponentSpecInitializer.binaryAction()));
+
+        final SimpleModelRuleDescriptor baseDescriptor = new SimpleModelRuleDescriptor("createSourceTransformTasks");
+        modelRegistry.configure(ModelActionRole.Defaults, DirectNodeModelAction.of(ModelReference.of("components"), baseDescriptor, new Action<MutableModelNode>() {
+            @Override
+            public void execute(MutableModelNode modelNode) {
+                NestedModelRuleDescriptor binariesRuleDescriptor = new NestedModelRuleDescriptor(baseDescriptor, new SimpleModelRuleDescriptor("binaries"));
+                final ModelReference<LanguageTransformContainer> languageTransformContainerReference = ModelReference.of(LanguageTransformContainer.class);
+                modelNode.applyToAllLinksTransitive(ModelActionRole.Finalize, TriActionBackedModelAction.of(ModelReference.of(BinarySpec.class), binariesRuleDescriptor, Collections.<ModelReference<?>>singletonList(languageTransformContainerReference), new TriAction<MutableModelNode, BinarySpec, List<ModelView<?>>>() {
+                    @Override
+                    public void execute(MutableModelNode modelNode, BinarySpec binarySpec, List<ModelView<?>> modelViews) {
+                        final BinarySpecInternal binary = (BinarySpecInternal) binarySpec;
+                        LanguageTransformContainer languageTransforms = ModelViews.getInstance(modelViews.get(0), languageTransformContainerReference);
+                        for (LanguageTransform<?, ?> language : languageTransforms) {
+                            if (binary.isLegacyBinary() || !language.applyToBinary(binary)) {
+                                continue;
+                            }
+
+                            final SourceTransformTaskConfig taskConfig = language.getTransformTask();
+                            binary.getSource().withType(language.getSourceSetType(), new Action<LanguageSourceSet>() {
+                                public void execute(LanguageSourceSet languageSourceSet) {
+                                    final LanguageSourceSetInternal sourceSet = (LanguageSourceSetInternal) languageSourceSet;
+                                    if (sourceSet.getMayHaveSources()) {
+                                        String taskName = taskConfig.getTaskPrefix() + capitalize(binary.getName()) + capitalize(sourceSet.getFullName());
+                                        binary.getTasks().create(taskName, taskConfig.getTaskType(), new Action<DefaultTask>() {
+                                            @Override
+                                            public void execute(DefaultTask task) {
+                                                taskConfig.configureTask(task, binary, sourceSet);
+
+                                                task.dependsOn(sourceSet);
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+                        }
+
+                    }
+                }));
+            }
+        }));
     }
 
     @SuppressWarnings("UnusedDeclaration")
@@ -110,38 +153,38 @@ public class ComponentModelBasePlugin implements Plugin<ProjectInternal> {
             }
         }
 
-        // Required because creation of Binaries from Components is not yet wired into the infrastructure
+
         @Mutate
         void closeComponentsForBinaries(CollectionBuilder<Task> tasks, ComponentSpecContainer components) {
         }
 
-        // Finalizing here, as we need this to run after any 'assembling' task (jar, link, etc) is created.
-        @Finalize
-        void createSourceTransformTasks(final TaskContainer tasks, final BinaryContainer binaries, LanguageTransformContainer languageTransforms) {
-            for (LanguageTransform<?, ?> language : languageTransforms) {
-                for (final BinarySpecInternal binary : binaries.withType(BinarySpecInternal.class)) {
-                    if (binary.isLegacyBinary() || !language.applyToBinary(binary)) {
-                        continue;
-                    }
-
-                    final SourceTransformTaskConfig taskConfig = language.getTransformTask();
-                    binary.getSource().withType(language.getSourceSetType(), new Action<LanguageSourceSet>() {
-                        public void execute(LanguageSourceSet languageSourceSet) {
-                            LanguageSourceSetInternal sourceSet = (LanguageSourceSetInternal) languageSourceSet;
-                            if (sourceSet.getMayHaveSources()) {
-                                String taskName = taskConfig.getTaskPrefix() + capitalize(binary.getName()) + capitalize(sourceSet.getFullName());
-                                Task task = tasks.create(taskName, taskConfig.getTaskType());
-
-                                taskConfig.configureTask(task, binary, sourceSet);
-
-                                task.dependsOn(sourceSet);
-                                binary.getTasks().add(task);
-                            }
-                        }
-                    });
-                }
-            }
-        }
+//        // Finalizing here, as we need this to run after any 'assembling' task (jar, link, etc) is created.
+//        @Finalize
+//        void createSourceTransformTasks(final TaskContainer tasks, final BinaryContainer binaries, LanguageTransformContainer languageTransforms) {
+//            for (LanguageTransform<?, ?> language : languageTransforms) {
+//                for (final BinarySpecInternal binary : binaries.withType(BinarySpecInternal.class)) {
+//                    if (binary.isLegacyBinary() || !language.applyToBinary(binary)) {
+//                        continue;
+//                    }
+//
+//                    final SourceTransformTaskConfig taskConfig = language.getTransformTask();
+//                    binary.getSource().withType(language.getSourceSetType(), new Action<LanguageSourceSet>() {
+//                        public void execute(LanguageSourceSet languageSourceSet) {
+//                            LanguageSourceSetInternal sourceSet = (LanguageSourceSetInternal) languageSourceSet;
+//                            if (sourceSet.getMayHaveSources()) {
+//                                String taskName = taskConfig.getTaskPrefix() + capitalize(binary.getName()) + capitalize(sourceSet.getFullName());
+//                                Task task = tasks.create(taskName, taskConfig.getTaskType());
+//
+//                                taskConfig.configureTask(task, binary, sourceSet);
+//
+//                                task.dependsOn(sourceSet);
+//                                binary.getTasks().add(task);
+//                            }
+//                        }
+//                    });
+//                }
+//            }
+//        }
 
         @Mutate
         void applyDefaultSourceConventions(ComponentSpecContainer componentSpecs) {
@@ -194,6 +237,7 @@ public class ComponentModelBasePlugin implements Plugin<ProjectInternal> {
 
         @Defaults
         void collectBinaries(BinaryContainer binaries, ComponentSpecContainer componentSpecs) {
+            System.out.println("collectBinaries(); = ");
             for (ComponentSpec componentSpec : componentSpecs.values()) {
                 for (BinarySpec binary : componentSpec.getBinaries()) {
                     binaries.add(binary);

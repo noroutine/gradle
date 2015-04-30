@@ -17,7 +17,6 @@
 package org.gradle.nativeplatform.test.plugins;
 
 import org.gradle.api.*;
-import org.gradle.api.tasks.TaskContainer;
 import org.gradle.internal.BiActions;
 import org.gradle.language.base.internal.model.CollectionBuilderCreators;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -33,8 +32,11 @@ import org.gradle.nativeplatform.internal.NativeBinarySpecInternal;
 import org.gradle.nativeplatform.plugins.NativeComponentPlugin;
 import org.gradle.nativeplatform.tasks.InstallExecutable;
 import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec;
+import org.gradle.nativeplatform.test.NativeTestSuiteSpec;
 import org.gradle.nativeplatform.test.tasks.RunTestExecutable;
 import org.gradle.platform.base.BinaryContainer;
+import org.gradle.platform.base.BinaryTasksCollection;
+import org.gradle.platform.base.ComponentSpecContainer;
 import org.gradle.platform.base.internal.BinaryNamingScheme;
 import org.gradle.platform.base.internal.test.DefaultTestSuiteContainer;
 import org.gradle.platform.base.test.TestSuiteContainer;
@@ -84,22 +86,35 @@ public class NativeBinariesTestPlugin implements Plugin<Project> {
         }
 
         @Finalize
-        public void createTestTasks(final TaskContainer tasks, BinaryContainer binaries) {
-            for (NativeTestSuiteBinarySpec testBinary : binaries.withType(NativeTestSuiteBinarySpec.class)) {
-                NativeBinarySpecInternal binary = (NativeBinarySpecInternal) testBinary;
-                final BinaryNamingScheme namingScheme = binary.getNamingScheme();
+        public void createTestTasks(TestSuiteContainer testSuiteSpecs, ComponentSpecContainer componentSpecContainer    ) {
+            testSuiteSpecs.withType(NativeTestSuiteSpec.class).afterEach(new Action<NativeTestSuiteSpec>() {
+                @Override
+                public void execute(NativeTestSuiteSpec nativeTestSuiteSpec) {
+                    for (final NativeTestSuiteBinarySpec testBinary : nativeTestSuiteSpec.getBinaries().withType(NativeTestSuiteBinarySpec.class)) {
+                        final NativeBinarySpecInternal binary = (NativeBinarySpecInternal) testBinary;
+                        final BinaryNamingScheme namingScheme = binary.getNamingScheme();
 
-                RunTestExecutable runTask = tasks.create(namingScheme.getTaskName("run"), RunTestExecutable.class);
-                final Project project = runTask.getProject();
-                runTask.setDescription(String.format("Runs the %s", binary));
+                        testBinary.getTasks().create(namingScheme.getTaskName("run"), RunTestExecutable.class, new Action<RunTestExecutable>() {
+                            @Override
+                            public void execute(RunTestExecutable runTask) {
+                                final Project project = runTask.getProject();
+                                runTask.setDescription(String.format("Runs the %s", binary));
 
-                final InstallExecutable installTask = binary.getTasks().withType(InstallExecutable.class).iterator().next();
-                runTask.getInputs().files(installTask.getOutputs().getFiles());
-                runTask.setExecutable(installTask.getRunScript().getPath());
-                runTask.setOutputDir(new File(project.getBuildDir(), "/test-results/" + namingScheme.getOutputDirectoryBase()));
+                                BinaryTasksCollection tasks = binary.getTasks();
+                                final DomainObjectSet<InstallExecutable> installExecutables = testBinary.getTasks().withType(InstallExecutable.class);
+                                final InstallExecutable installTask = tasks.withType(InstallExecutable.class).iterator().next();
+                                runTask.getInputs().files(installTask.getOutputs().getFiles());
+                                runTask.setExecutable(installTask.getRunScript().getPath());
+                                runTask.setOutputDir(new File(project.getBuildDir(), "/test-results/" + namingScheme.getOutputDirectoryBase()));
 
-                testBinary.getTasks().add(runTask);
-            }
+                                testBinary.getTasks().add(runTask);
+                            }
+                        });
+
+                    }
+                }
+            });
+
         }
 
         @Mutate
