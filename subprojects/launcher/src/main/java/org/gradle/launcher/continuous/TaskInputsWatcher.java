@@ -16,17 +16,14 @@
 
 package org.gradle.launcher.continuous;
 
-import com.google.common.collect.Lists;
 import org.gradle.BuildAdapter;
 import org.gradle.BuildResult;
 import org.gradle.api.Action;
 import org.gradle.api.Task;
-import org.gradle.api.Transformer;
-import org.gradle.api.execution.TaskExecutionGraph;
-import org.gradle.api.execution.TaskExecutionGraphListener;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.execution.TaskExecutionAdapter;
 import org.gradle.api.internal.file.FileCollectionInternal;
 import org.gradle.api.internal.file.UnionFileCollection;
+import org.gradle.api.internal.file.collections.SimpleFileCollection;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -35,47 +32,35 @@ import org.gradle.internal.filewatch.FileWatcherEvent;
 import org.gradle.internal.filewatch.FileWatcherFactory;
 import org.gradle.internal.filewatch.FilteringFileWatcherListener;
 import org.gradle.internal.filewatch.StopThenFireFileWatcherListener;
-import org.gradle.util.CollectionUtils;
-
-import java.util.Collection;
 
 public class TaskInputsWatcher extends BuildAdapter {
     private final static Logger LOGGER = Logging.getLogger(TaskInputsWatcher.class);
     private final TriggerListener listener;
     private final FileWatcherFactory fileWatcherFactory;
-    private final Collection<Task> tasks;
+    private final FileCollectionInternal taskInputs;
 
     public TaskInputsWatcher(TriggerListener listener, FileWatcherFactory fileWatcherFactory) {
         this.listener = listener;
         this.fileWatcherFactory = fileWatcherFactory;
-        this.tasks = Lists.newLinkedList();
+        this.taskInputs = new UnionFileCollection();
     }
 
     @Override
     public void buildStarted(Gradle gradle) {
-        // Task graph is consumed, so it's empty by the time buildFinished is called
-        // Save the list of tasks that will be executed.
-        gradle.getTaskGraph().addTaskExecutionGraphListener(new TaskExecutionGraphListener() {
+        gradle.getTaskGraph().addTaskExecutionListener(new TaskExecutionAdapter() {
             @Override
-            public void graphPopulated(TaskExecutionGraph graph) {
-                tasks.addAll(graph.getAllTasks());
+            public void beforeExecute(Task task) {
+                // Capture snapshot of input files
+                taskInputs.add(new SimpleFileCollection(task.getInputs().getFiles().getFiles()));
             }
         });
     }
 
     @Override
     public void buildFinished(BuildResult result) {
-        final FileCollectionInternal taskInputs = new UnionFileCollection(
-            CollectionUtils.collect(tasks, new Transformer<FileCollection, Task>() {
-                public FileCollection transform(Task input) {
-                    return input.getInputs().getFiles();
-                }
-            })
-        );
-
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("Task inputs: {}", taskInputs.getFiles());
-            LOGGER.debug("taskInputs.getFileSystemRoots(): {}", taskInputs.getFileSystemRoots());
+        if (true || LOGGER.isDebugEnabled()) {
+            LOGGER.error("taskInputs.getFileSystemRoots(): {}", taskInputs.getFileSystemRoots());
+            LOGGER.error("Task inputs: {}", taskInputs.getFiles());
         }
 
         fileWatcherFactory.watch(
@@ -90,8 +75,8 @@ public class TaskInputsWatcher extends BuildAdapter {
                 new Spec<FileWatcherEvent>() {
                     @Override
                     public boolean isSatisfiedBy(FileWatcherEvent element) {
-                        if (LOGGER.isDebugEnabled()) {
-                            LOGGER.debug("Received file system event: {}", element);
+                        if (true || LOGGER.isDebugEnabled()) {
+                            LOGGER.error("Received file system event: {}", element);
                         }
                         return element.getType().equals(FileWatcherEvent.Type.UNDEFINED)
                             || taskInputs.wouldContain(element.getFile());

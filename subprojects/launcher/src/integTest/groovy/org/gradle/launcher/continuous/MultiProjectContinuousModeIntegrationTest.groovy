@@ -16,34 +16,41 @@
 
 package org.gradle.launcher.continuous
 
-import org.gradle.language.fixtures.BadJavaComponent
-import org.gradle.test.fixtures.file.TestFile
+import org.gradle.integtests.fixtures.jvm.IncrementalTestJvmComponent
 
+abstract class MultiProjectContinuousModeIntegrationTest extends AbstractContinuousModeExecutionIntegrationTest {
+    @Override
+    IncrementalTestJvmComponent getApp() {
+        return null
+    }
 
-abstract class SingleProjectContinuousModeIntegrationTest extends AbstractContinuousModeExecutionIntegrationTest {
-    abstract TestFile getSourceDir()
+    @Override
+    String getCompileTask() {
+        return null
+    }
 
+    @Override
     void validSource() {
-        sourceFiles = app.writeSources(sourceDir)
-        resourceFiles = app.writeResources(sourceDir.createDir("resources"))
+
     }
 
+    @Override
     void invalidSource() {
-        sourceFiles = new BadJavaComponent().writeSources(sourceDir)
-        resourceFiles = new BadJavaComponent().writeResources(sourceDir.createDir("resources"))
+
     }
 
+    @Override
     void changeSource() {
-        app.changeSources(sourceFiles)
+
     }
 
+    @Override
     void createSource() {
-        app.writeAdditionalSources(sourceDir)
+
     }
 
-    TestFile createIgnoredFile() {
-        app.createIgnoredFileInSources(sourceDir)
-    }
+    @Override
+    void deleteSource() {
 
-    void deleteSource() { sourceFiles[0].delete() }
+    }
 }

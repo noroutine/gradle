@@ -27,7 +27,7 @@ import org.gradle.util.TestPrecondition
 import org.junit.Rule
 
 @Requires(TestPrecondition.JDK7_OR_LATER)
-abstract public class EnablingContinuousModeExecutionIntegrationTest extends AbstractIntegrationSpec {
+abstract public class AbstractContinuousModeExecutionIntegrationTest extends AbstractIntegrationSpec {
     @Delegate @Rule ContinuousBuildTrigger buildTrigger = new ContinuousBuildTrigger(executer, this)
 
     abstract IncrementalTestJvmComponent getApp()
@@ -71,6 +71,7 @@ abstract public class EnablingContinuousModeExecutionIntegrationTest extends Abs
 
     def "prints useful messages when in continuous mode"() {
         when:
+        executer.withArgument("--stacktrace")
         startGradle()
         and:
         afterBuild {
@@ -205,6 +206,7 @@ throw new GradleException("config error")
 
         when:
         createSource()
+        println "creating source"
         and:
         waitForWatching()
         then:
@@ -212,6 +214,7 @@ throw new GradleException("config error")
 
         when:
         deleteSource()
+        println "deleting source"
         and:
         afterBuild {
             triggerStop()
@@ -327,10 +330,40 @@ throw new GradleException("config error")
 
         when:
         ignoredFile.delete()
+        and:
         waitForWatching()
         then:
         def e = thrown(AssertionFailedError)
         assert e.message.startsWith("Timeout waiting for client to connect")
+    }
+
+    def "does not rebuild when filtered task inputs are changed" () {
+        given:
+        validSource()
+        TestFile inputFile = file("src/foo.bar").createFile()
+        inputFile << "X"
+        buildFile << """
+            task otherTask {
+                inputs.files fileTree(dir: "${inputFile.parentFile.toURI()}").matching({ exclude("**/foo.bar") })
+                doLast { println "Running" }
+            }
+        """
+
+        when:
+        startGradle("otherTask")
+        and:
+        waitForWatching()
+        then:
+        buildSucceeds()
+
+        when:
+        inputFile << "Y"
+        and:
+        waitForWatching()
+        then:
+        def e = thrown(AssertionFailedError)
+        assert e.message.startsWith("Timeout waiting for client to connect")
+
     }
 
     def buildSucceeds() {
