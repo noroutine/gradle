@@ -40,7 +40,6 @@ import org.gradle.model.internal.type.ModelType;
 import org.gradle.model.internal.type.ModelTypes;
 import org.gradle.platform.base.BinaryContainer;
 import org.gradle.platform.base.BinarySpec;
-import org.gradle.platform.base.BinaryTasksCollection;
 import org.gradle.platform.base.internal.BinarySpecInternal;
 import org.gradle.platform.base.internal.DefaultBinaryContainer;
 
@@ -79,17 +78,17 @@ public class LanguageBasePlugin implements Plugin<Project> {
     private static void applyRules(ModelRegistry modelRegistry, DefaultBinaryContainer binaries) {
         final String descriptor = LanguageBasePlugin.class.getName() + ".apply()";
         final ModelRuleDescriptor ruleDescriptor = new SimpleModelRuleDescriptor(descriptor);
-        final ModelPath binariesPath = ModelPath.path("binaries");
+        ModelPath binariesPath = ModelPath.path("binaries");
         BridgedCollections.dynamicTypes(
-            modelRegistry,
-            binariesPath,
-            descriptor,
-            ModelType.of(DefaultBinaryContainer.class),
-            ModelType.of(DefaultBinaryContainer.class),
-            ModelType.of(BinarySpec.class),
-            binaries,
-            Named.Namer.INSTANCE,
-            BridgedCollections.itemDescriptor(descriptor)
+                modelRegistry,
+                binariesPath,
+                descriptor,
+                ModelType.of(DefaultBinaryContainer.class),
+                ModelType.of(DefaultBinaryContainer.class),
+                ModelType.of(BinarySpec.class),
+                binaries,
+                Named.Namer.INSTANCE,
+                BridgedCollections.itemDescriptor(descriptor)
         );
 
         modelRegistry.configure(ModelActionRole.Defaults, DirectNodeModelAction.of(ModelReference.of(binariesPath), ruleDescriptor, new Action<MutableModelNode>() {
@@ -111,26 +110,17 @@ public class LanguageBasePlugin implements Plugin<Project> {
                     @Override
                     public void execute(MutableModelNode modelNode) {
                         ModelPath binaryPath = modelNode.getPath();
+                        ModelPath taskNodePath = binaryPath.child("__tasks");
                         ModelType<Collection<Task>> taskCollectionType = ModelTypes.collectionOf(Task.class);
-                        MutableModelNode root = modelNode.getParent().getParent();
-                        ModelPath taskNodePath = root.getPath().child(binaryPath.getName() + "__tasks");
-                        root.addLink(ModelCreators.of(taskNodePath, BiActions.doNothing())
-                                                  .withProjection(new UnmanagedModelProjection<Collection<Task>>(taskCollectionType))
-                                                  .descriptor(descriptor + ".createTasksNode")
-                                                  .hidden(true)
-                                                  .ephemeral(true)
-                                                  .build()
+                        modelNode.addLink(ModelCreators.of(taskNodePath, BiActions.doNothing())
+                                        .withProjection(new UnmanagedModelProjection<Collection<Task>>(taskCollectionType))
+                                        .descriptor(descriptor + ".createTasksNode")
+                                        .hidden(true)
+                                        .build()
                         );
-                        MutableModelNode link = root.getLink(taskNodePath.getName());
-                        if (link == null) {
-                            throw new AssertionError();
-                        }
-                        if (modelNode.getPrivateData() == null) {
-                            throw new AssertionError();
-                        }
-                        BinarySpec privateData = modelNode.getPrivateData(ModelType.of(BinarySpec.class));
-                        BinaryTasksCollection tasks = privateData.getTasks();
-                        link.setPrivateData(taskCollectionType, tasks);
+                        MutableModelNode link = modelNode.getLink(taskNodePath.getName());
+                        assert link != null;
+                        link.setPrivateData(taskCollectionType, modelNode.getPrivateData(ModelType.of(BinarySpec.class)).getTasks());
                     }
                 }));
             }
@@ -143,10 +133,10 @@ public class LanguageBasePlugin implements Plugin<Project> {
             }
         };
         modelRegistry.createOrReplace(ModelCreators.unmanagedInstance(ModelReference.of(ModelPath.path("__binarySpecFactoryRegistry"), ModelType.of(BinarySpecFactoryRegistry.class)), registryFactory)
-                                                   .descriptor(ruleDescriptor)
-                                                   .ephemeral(true)
-                                                   .hidden(true)
-                                                   .build());
+                .descriptor(ruleDescriptor)
+                .ephemeral(true)
+                .hidden(true)
+                .build());
 
         modelRegistry.getRoot().applyToAllLinksTransitive(ModelActionRole.Defaults,
             DirectNodeModelAction.of(
