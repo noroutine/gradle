@@ -16,7 +16,9 @@
 
 package org.gradle.platform.base.internal.registry;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import org.gradle.api.Action;
 import org.gradle.api.Task;
 import org.gradle.api.internal.TaskInternal;
@@ -26,6 +28,7 @@ import org.gradle.language.base.plugins.ComponentModelBasePlugin;
 import org.gradle.model.InvalidModelRuleDeclarationException;
 import org.gradle.model.ModelMap;
 import org.gradle.model.internal.core.*;
+import org.gradle.model.internal.core.rule.describe.NestedModelRuleDescriptor;
 import org.gradle.model.internal.core.rule.describe.SimpleModelRuleDescriptor;
 import org.gradle.model.internal.inspect.MethodRuleDefinition;
 import org.gradle.model.internal.type.ModelType;
@@ -85,20 +88,31 @@ public class BinaryTasksModelRuleExtractor extends AbstractAnnotationDrivenCompo
         }
 
         public void execute(MutableModelNode modelNode, final T binary, List<ModelView<?>> inputs) {
-            ModelMap<TaskInternal> modelMap = new DefaultModelMap<TaskInternal>(
-                    ModelType.of(TaskInternal.class),
-                    getDescriptor(),
-                    modelNode,
-                    createAndStoreVia(
-                        ModelReference.of(ITaskFactory.class),
-                        ModelReference.of(modelNode.getPath().child("__tasks"), ModelTypes.collectionOf(Task.class))
-                    )
+            final ModelMap<TaskInternal> modelMap = new DefaultModelMap<TaskInternal>(
+                ModelType.of(TaskInternal.class),
+                getDescriptor(),
+                modelNode,
+                createAndStoreVia(
+                    ModelReference.of(ITaskFactory.class),
+                    ModelReference.of(modelNode.getParent().getPath().sibling(modelNode.getPath().getName() + "__tasks"), ModelTypes.collectionOf(Task.class))
+                )
 
             ) {
                 @Override
                 protected <S extends TaskInternal> void onCreate(final String name, ModelType<S> type) {
-                    Task task = get(name);
-                    binary.builtBy(task);
+                    modelNode.getLink(name).ensureUsable();
+                    modelNode.applyToSelf(ModelActionRole.Finalize, ActionBackedModelAction.of(ModelReference.of(modelNode.getPath(), BinarySpec.class), new NestedModelRuleDescriptor(getDescriptor(), "tasks"), new Action<BinarySpec>() {
+                        @Override
+                        public void execute(BinarySpec binarySpec) {
+                            Task task = Iterables.find(binarySpec.getTasks(), new Predicate<Task>() {
+                                @Override
+                                public boolean apply(Task input) {
+                                    return input.getName().equals(name);
+                                }
+                            });
+                            binary.builtBy(task);
+                        }
+                    }));
                 }
             };
 
