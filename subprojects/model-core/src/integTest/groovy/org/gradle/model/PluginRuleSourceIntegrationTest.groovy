@@ -387,11 +387,14 @@ class PluginRuleSourceIntegrationTest extends AbstractIntegrationSpec {
             class MyPlugin {
                 static class Rules extends RuleSource {
                     @Mutate
-                    void addTasks(ModelMap<Task> tasks, @Path("tasks.injected") Exec execTask) {
-                        tasks.create("name") {
-                            it.doLast {
-                                println "name: ${execTask.name}"
-                            }
+                    void addTasks(ModelMap<Task> tasks) {
+                        tasks.create("name")
+                    }
+
+                    @Mutate
+                    void configureNameTask(@Path("tasks.name") Task nameTask, @Path("tasks.injected") Exec execTask) {
+                        nameTask.doLast {
+                            println "name: ${execTask.name}"
                         }
                     }
                 }

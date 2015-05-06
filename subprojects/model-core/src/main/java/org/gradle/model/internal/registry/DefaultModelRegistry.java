@@ -259,7 +259,7 @@ public class DefaultModelRegistry implements ModelRegistry {
 
     private ModelNode selfCloseAncestryAndSelf(ModelPath path) {
         ModelPath parent = path.getParent();
-        if (parent != null) {
+        if (parent != null && parent != ModelPath.ROOT) {
             if (selfCloseAncestryAndSelf(parent) == null) {
                 return null;
             }
@@ -325,6 +325,7 @@ public class DefaultModelRegistry implements ModelRegistry {
     }
 
     private void close(ModelNodeInternal node) {
+        selfCloseAncestryAndSelf(node.getPath());
         transition(node, GraphClosed, false);
     }
 
