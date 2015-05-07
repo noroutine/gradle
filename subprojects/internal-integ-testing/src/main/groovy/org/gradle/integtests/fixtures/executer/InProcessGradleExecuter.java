@@ -182,7 +182,7 @@ class InProcessGradleExecuter extends AbstractGradleExecuter {
 
         try {
             // TODO: Reuse more of BuildActionsFactory
-            BuildAction action = new ExecuteBuildAction(startParameter);
+            BuildAction action = new ExecuteBuildAction(parameters);
             BuildActionParameters buildActionParameters = new DefaultBuildActionParameters(
                     System.getProperties(),
                     System.getenv(),

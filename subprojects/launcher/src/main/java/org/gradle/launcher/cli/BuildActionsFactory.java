@@ -16,7 +16,6 @@
 
 package org.gradle.launcher.cli;
 
-import org.gradle.StartParameter;
 import org.gradle.api.internal.DocumentationRegistry;
 import org.gradle.cli.CommandLineConverter;
 import org.gradle.cli.CommandLineParser;
@@ -27,13 +26,8 @@ import org.gradle.internal.nativeintegration.services.NativeServices;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.service.ServiceRegistryBuilder;
 import org.gradle.internal.service.scopes.GlobalScopeServices;
-import org.gradle.launcher.continuous.ContinuousModeParameters;
 import org.gradle.launcher.daemon.bootstrap.ForegroundDaemonAction;
-import org.gradle.launcher.daemon.client.DaemonClient;
-import org.gradle.launcher.daemon.client.DaemonClientBuildActionExecuter;
-import org.gradle.launcher.daemon.client.DaemonClientFactory;
-import org.gradle.launcher.daemon.client.DaemonClientGlobalServices;
-import org.gradle.launcher.daemon.client.DaemonStopClient;
+import org.gradle.launcher.daemon.client.*;
 import org.gradle.launcher.daemon.configuration.CurrentProcess;
 import org.gradle.launcher.daemon.configuration.DaemonParameters;
 import org.gradle.launcher.daemon.configuration.ForegroundDaemonConfiguration;
@@ -72,13 +66,13 @@ class BuildActionsFactory implements CommandLineAction {
             return new ForegroundDaemonAction(loggingServices, conf);
         }
         if (parameters.getDaemonParameters().getDaemonUsage().isEnabled()) {
-            return runBuildWithDaemon(parameters.getStartParameter(), parameters.getDaemonParameters(), loggingServices, parameters.getContinuousModeParameters());
+            return runBuildWithDaemon(parameters, loggingServices);
         }
         if (canUseCurrentProcess(parameters.getDaemonParameters())) {
-            return runBuildInProcess(parameters.getStartParameter(), parameters.getDaemonParameters(), loggingServices, parameters.getContinuousModeParameters());
+            return runBuildInProcess(parameters, loggingServices);
         }
 
-        return runBuildInSingleUseDaemon(parameters.getStartParameter(), parameters.getDaemonParameters(), loggingServices, parameters.getContinuousModeParameters());
+        return runBuildInSingleUseDaemon(parameters, loggingServices);
     }
 
     private Runnable stopAllDaemons(DaemonParameters daemonParameters, ServiceRegistry loggingServices) {
@@ -88,12 +82,12 @@ class BuildActionsFactory implements CommandLineAction {
         return new StopDaemonAction(stopClient);
     }
 
-    private Runnable runBuildWithDaemon(StartParameter startParameter, DaemonParameters daemonParameters, ServiceRegistry loggingServices, ContinuousModeParameters continuousModeParameters) {
+    private Runnable runBuildWithDaemon(Parameters cliParameters, ServiceRegistry loggingServices) {
         // Create a client that will match based on the daemon startup parameters.
         ServiceRegistry clientSharedServices = createGlobalClientServices();
-        ServiceRegistry clientServices = clientSharedServices.get(DaemonClientFactory.class).createBuildClientServices(loggingServices.get(OutputEventListener.class), daemonParameters, System.in);
+        ServiceRegistry clientServices = clientSharedServices.get(DaemonClientFactory.class).createBuildClientServices(loggingServices.get(OutputEventListener.class), cliParameters.getDaemonParameters(), System.in);
         DaemonClient client = clientServices.get(DaemonClient.class);
-        return runBuild(startParameter, daemonParameters, new DaemonClientBuildActionExecuter(client), continuousModeParameters);
+        return runBuild(cliParameters, new DaemonClientBuildActionExecuter(client));
     }
 
     private boolean canUseCurrentProcess(DaemonParameters requiredBuildParameters) {
@@ -101,7 +95,7 @@ class BuildActionsFactory implements CommandLineAction {
         return currentProcess.configureForBuild(requiredBuildParameters);
     }
 
-    private Runnable runBuildInProcess(StartParameter startParameter, DaemonParameters daemonParameters, ServiceRegistry loggingServices, ContinuousModeParameters continuousModeParameters) {
+    private Runnable runBuildInProcess(Parameters cliParameters, ServiceRegistry loggingServices) {
         ServiceRegistry globalServices = ServiceRegistryBuilder.builder()
                 .displayName("Global services")
                 .parent(loggingServices)
@@ -114,14 +108,15 @@ class BuildActionsFactory implements CommandLineAction {
         DocumentationRegistry documentationRegistry = globalServices.get(DocumentationRegistry.class);
         DaemonUsageSuggestingBuildActionExecuter daemonUsageSuggestingExecuter = new DaemonUsageSuggestingBuildActionExecuter(executer, textOutputFactory, documentationRegistry);
 
-        return runBuild(startParameter, daemonParameters, daemonUsageSuggestingExecuter, continuousModeParameters);
+        return runBuild(cliParameters, daemonUsageSuggestingExecuter);
     }
 
-    private Runnable runBuildInSingleUseDaemon(StartParameter startParameter, DaemonParameters daemonParameters, ServiceRegistry loggingServices, ContinuousModeParameters continuousModeParameters) {
+    private Runnable runBuildInSingleUseDaemon(Parameters cliParameters, ServiceRegistry loggingServices) {
         //(SF) this is a workaround until this story is completed. I'm hardcoding setting the idle timeout to be max X mins.
         //this way we avoid potential runaway daemons that steal resources on linux and break builds on windows.
         //We might leave that in if we decide it's a good idea for an extra safety net.
         int maxTimeout = 2 * 60 * 1000;
+        DaemonParameters daemonParameters = cliParameters.getDaemonParameters();
         if (daemonParameters.getIdleTimeout() > maxTimeout) {
             daemonParameters.setIdleTimeout(maxTimeout);
         }
@@ -131,7 +126,7 @@ class BuildActionsFactory implements CommandLineAction {
         ServiceRegistry clientSharedServices = createGlobalClientServices();
         ServiceRegistry clientServices = clientSharedServices.get(DaemonClientFactory.class).createSingleUseDaemonClientServices(loggingServices.get(OutputEventListener.class), daemonParameters, System.in);
         DaemonClient client = clientServices.get(DaemonClient.class);
-        return runBuild(startParameter, daemonParameters, new DaemonClientBuildActionExecuter(client), continuousModeParameters);
+        return runBuild(cliParameters, new DaemonClientBuildActionExecuter(client));
     }
 
     private ServiceRegistry createGlobalClientServices() {
@@ -143,14 +138,14 @@ class BuildActionsFactory implements CommandLineAction {
                 .build();
     }
 
-    private Runnable runBuild(StartParameter startParameter, DaemonParameters daemonParameters, BuildActionExecuter<BuildActionParameters> executer, ContinuousModeParameters continuousModeParameters) {
+    private Runnable runBuild(Parameters cliParameters, BuildActionExecuter<BuildActionParameters> executer) {
         BuildActionParameters parameters = new DefaultBuildActionParameters(
-                daemonParameters.getEffectiveSystemProperties(),
+                cliParameters.getDaemonParameters().getEffectiveSystemProperties(),
                 System.getenv(),
                 SystemProperties.getInstance().getCurrentDir(),
-                startParameter.getLogLevel(),
-                daemonParameters.getDaemonUsage(), continuousModeParameters.isEnabled());
-        return new RunBuildAction(executer, startParameter, clientMetaData(), getBuildStartTime(), parameters);
+                cliParameters.getStartParameter().getLogLevel(),
+                cliParameters.getDaemonParameters().getDaemonUsage(), cliParameters.getContinuousModeParameters().isEnabled());
+        return new RunBuildAction(executer, cliParameters, clientMetaData(), getBuildStartTime(), parameters);
     }
 
     private long getBuildStartTime() {

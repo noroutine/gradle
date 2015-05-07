@@ -22,17 +22,20 @@ import org.gradle.initialization.BuildRequestContext
 import org.gradle.initialization.FixedBuildCancellationToken
 import org.gradle.launcher.exec.BuildActionExecuter
 import org.gradle.launcher.exec.BuildActionParameters
+import org.gradle.util.UsesNativeServices
 import spock.lang.Specification
 
+@UsesNativeServices
 class RunBuildActionTest extends Specification {
     final BuildActionExecuter<BuildActionParameters> client = Mock()
     final StartParameter startParameter = Mock()
+    final Parameters cliParameters = new Parameters(startParameter)
     final BuildClientMetaData clientMetaData = Mock()
     final File currentDir = new File('current-dir')
     final long startTime = 90
     final Map<String, String> systemProperties = [key: 'value']
     final BuildActionParameters parameters = Mock()
-    final RunBuildAction action = new RunBuildAction(client, startParameter, clientMetaData, startTime, parameters)
+    final RunBuildAction action = new RunBuildAction(client, cliParameters, clientMetaData, startTime, parameters)
 
     def runsBuildUsingDaemon() {
         when:

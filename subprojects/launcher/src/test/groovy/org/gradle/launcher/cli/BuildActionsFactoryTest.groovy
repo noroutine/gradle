@@ -70,7 +70,7 @@ class BuildActionsFactoryTest extends Specification {
         RunBuildAction action = convert('--max-workers=5')
 
         then:
-        action.startParameter.maxWorkerCount == 5
+        action.parameters.startParameter.maxWorkerCount == 5
     }
 
     def "executes build"() {

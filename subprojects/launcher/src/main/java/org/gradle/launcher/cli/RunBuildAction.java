@@ -15,22 +15,21 @@
  */
 package org.gradle.launcher.cli;
 
-import org.gradle.StartParameter;
 import org.gradle.initialization.*;
 import org.gradle.launcher.exec.BuildActionExecuter;
 import org.gradle.launcher.exec.BuildActionParameters;
 
 public class RunBuildAction implements Runnable {
     private final BuildActionExecuter<BuildActionParameters> executer;
-    private final StartParameter startParameter;
+    private final Parameters parameters;
     private final BuildClientMetaData clientMetaData;
     private final long startTime;
     private final BuildActionParameters buildActionParameters;
 
-    public RunBuildAction(BuildActionExecuter<BuildActionParameters> executer, StartParameter startParameter, BuildClientMetaData clientMetaData, long startTime,
+    public RunBuildAction(BuildActionExecuter<BuildActionParameters> executer, Parameters parameters, BuildClientMetaData clientMetaData, long startTime,
                           BuildActionParameters buildActionParameters) {
         this.executer = executer;
-        this.startParameter = startParameter;
+        this.parameters = parameters;
         this.clientMetaData = clientMetaData;
         this.startTime = startTime;
         this.buildActionParameters = buildActionParameters;
@@ -38,7 +37,7 @@ public class RunBuildAction implements Runnable {
 
     public void run() {
         executer.execute(
-                new ExecuteBuildAction(startParameter),
+                new ExecuteBuildAction(parameters),
                 new DefaultBuildRequestContext(new DefaultBuildRequestMetaData(clientMetaData, startTime), new FixedBuildCancellationToken(), new NoOpBuildEventConsumer()),
                 buildActionParameters);
     }

@@ -21,14 +21,14 @@ import org.gradle.internal.invocation.BuildAction;
 import java.io.Serializable;
 
 public class ExecuteBuildAction implements BuildAction, Serializable {
-    private final StartParameter startParameter;
+    private final Parameters parameters;
 
-    public ExecuteBuildAction(StartParameter startParameter) {
-        this.startParameter = startParameter;
+    public ExecuteBuildAction(Parameters parameters) {
+        this.parameters = parameters;
     }
 
     @Override
     public StartParameter getStartParameter() {
-        return startParameter;
+        return parameters.getStartParameter();
     }
 }
