@@ -16,8 +16,6 @@
 
 package org.gradle.launcher.continuous
 
-import spock.lang.Ignore
-
 class ArchivesContinuousIntegrationTest extends AbstractContinuousIntegrationTest {
 
     def "creating zips in continuous mode"() {
@@ -65,15 +63,11 @@ class ArchivesContinuousIntegrationTest extends AbstractContinuousIntegrationTes
         skipped(":zip")
     }
 
-    @Ignore("source files for compressed inputs are not considered")
     def "using compressed files as inputs"() {
         given:
-        turnOnDebug()
         def packDir = file("pack").createDir()
         def outputDir = file("unpack")
         def sourceFile = file(source)
-        // TODO: this fixes the test
-        // inputs.files("${sourceFile.toURI()}")
         buildFile << """
     task unpack(type: Sync) {
         from($type("${sourceFile.toURI()}"))
