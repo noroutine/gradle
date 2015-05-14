@@ -153,6 +153,12 @@ public abstract class AbstractFileTree extends AbstractFileCollection implements
             });
             return this;
         }
+
+        @Override
+        public void registerWatchPoints(FileSystemSubset.Builder builder) {
+            // TODO: add handling for filtering, currently just ignored
+            fileTree.registerWatchPoints(builder);
+        }
     }
 
 }
