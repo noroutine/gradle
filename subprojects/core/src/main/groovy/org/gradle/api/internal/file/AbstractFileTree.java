@@ -64,7 +64,11 @@ public abstract class AbstractFileTree extends AbstractFileCollection implements
     public FileTree matching(PatternFilterable patterns) {
         PatternSet patternSet = new PatternSet();
         patternSet.copyFrom(patterns);
-        return new FilteredFileTree(this, patternSet.getAsSpec());
+        if(patternSet.isEmpty()) {
+            return this;
+        } else {
+            return new FilteredFileTree(this, patternSet.getAsSpec());
+        }
     }
 
     public Map<String, File> getAsMap() {

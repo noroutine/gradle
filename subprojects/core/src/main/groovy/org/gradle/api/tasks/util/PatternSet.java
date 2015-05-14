@@ -256,4 +256,8 @@ public class PatternSet implements AntBuilderAware, PatternFilterable {
 
         return new PatternSetAntBuilderDelegate(includes, excludes, caseSensitive).addToAntBuilder(node, childNodeName);
     }
+
+    public boolean isEmpty() {
+        return excludes.isEmpty() && excludeSpecs.isEmpty() && includes.isEmpty() && includeSpecs.isEmpty();
+    }
 }
