@@ -1,6 +1,8 @@
 ## Fork  notes
 This fork is for testing resolution strategy
 
+[![Build Status](https://travis-ci.org/noroutine/gradle.svg?branch=master)](https://travis-ci.org/noroutine/gradle)
+
 ## About
 <img src="http://gradle.org/img/gradle_logo.gif" />
 
