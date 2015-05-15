@@ -34,6 +34,8 @@ import org.gradle.api.internal.artifacts.ivyservice.moduleconverter.dependencies
 import org.gradle.api.internal.artifacts.ivyservice.projectmodule.ProjectArtifactResolver;
 import org.gradle.api.internal.artifacts.ivyservice.projectmodule.ProjectComponentRegistry;
 import org.gradle.api.internal.artifacts.ivyservice.projectmodule.ProjectDependencyResolver;
+import org.gradle.api.internal.artifacts.ivyservice.resolutionstrategy.LatestConflictResolution;
+import org.gradle.api.internal.artifacts.ivyservice.resolutionstrategy.MavenConflictResolution;
 import org.gradle.api.internal.artifacts.ivyservice.resolutionstrategy.StrictConflictResolution;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.DependencyGraphBuilder;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.conflicts.ConflictHandler;
@@ -100,12 +102,19 @@ public class DefaultDependencyResolver implements ArtifactDependencyResolver {
 
                 ArtifactResolver artifactResolver = createArtifactResolver(repositoryChain);
 
-                ModuleConflictResolver conflictResolver;
+                ModuleConflictResolver conflictResolver = null;
                 if (resolutionStrategy.getConflictResolution() instanceof StrictConflictResolution) {
                     conflictResolver = new StrictConflictResolver();
-                } else {
+                }
+
+                if (resolutionStrategy.getConflictResolution() instanceof MavenConflictResolution) {
+                     conflictResolver = new MavenConflictResolver();
+                }
+
+                if (null == conflictResolver || resolutionStrategy.getConflictResolution() instanceof LatestConflictResolution) {
                     conflictResolver = new LatestModuleConflictResolver(versionComparator);
                 }
+
                 conflictResolver = new VersionSelectionReasonResolver(conflictResolver);
                 ConflictHandler conflictHandler = new DefaultConflictHandler(conflictResolver, metadataHandler.getModuleMetadataProcessor().getModuleReplacements());
 
