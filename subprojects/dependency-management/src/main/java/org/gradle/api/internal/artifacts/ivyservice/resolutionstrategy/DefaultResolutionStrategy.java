@@ -72,6 +72,12 @@ public class DefaultResolutionStrategy implements ResolutionStrategyInternal {
         return this;
     }
 
+    public ResolutionStrategy useMavenConflictResolution() {
+        mutationValidator.validateMutation(STRATEGY);
+        this.conflictResolution = new MavenConflictResolution();
+        return this;
+    }
+
     public ConflictResolution getConflictResolution() {
         return this.conflictResolution;
     }
