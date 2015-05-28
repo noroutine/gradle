@@ -17,6 +17,8 @@
 package org.gradle.api.internal.artifacts.ivyservice.resolveengine;
 
 import org.gradle.api.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 
@@ -25,10 +27,12 @@ import java.util.Collection;
  */
 public class MavenConflictResolver implements ModuleConflictResolver {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(MavenConflictResolver.class);
     @Nullable
     @Override
     public <T extends ComponentResolutionState> T select(Collection<? extends T> candidates) {
-        throw new UnsupportedOperationException("Not implemented yet...");
+        LOGGER.debug("Not implemented yet...");
+        return candidates.iterator().next();
     }
 
 }

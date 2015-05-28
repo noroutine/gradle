@@ -158,6 +158,11 @@ public class DefaultResolutionStrategy implements ResolutionStrategyInternal {
         if (conflictResolution instanceof StrictConflictResolution) {
             out.failOnVersionConflict();
         }
+
+        if (conflictResolution instanceof MavenConflictResolution) {
+            out.useMavenConflictResolution();
+        }
+
         out.setForcedModules(getForcedModules());
         out.getComponentSelection().getRules().addAll(componentSelectionRules.getRules());
         return out;
